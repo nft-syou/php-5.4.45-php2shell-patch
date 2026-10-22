@@ -1,4 +1,5 @@
 /_upstream/
 /_build/
+/dist/
 /test-results/
 *.log

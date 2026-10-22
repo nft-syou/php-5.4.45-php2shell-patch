@@ -11,6 +11,26 @@
 
 PHP 5.4 は upstream のサポート終了版です。このパッチは 2 件の脆弱性を緩和しますが、PHP 5.4 全体を現在のセキュリティ水準に更新するものではありません。長期的にはサポート中の PHP へ移行してください。
 
+## パッチ適用済みソースtarball
+
+GitHub Releasesから、パッチ適用済みのソースtarballを取得できます。ビルド済みPHP runtimeの配布物ではなく、upstreamのtest fixtureを含む公式source treeを維持したものです。次の手順でダウンロードして検証できます。
+
+```sh
+curl -fLO https://github.com/nft-syou/php-5.4.45-php2shell-patch/releases/latest/download/php2shell-mitigation-for-php-5.4.45-source.tar.gz
+curl -fLO https://github.com/nft-syou/php-5.4.45-php2shell-patch/releases/latest/download/SHA256SUMS
+grep 'source.tar.gz' SHA256SUMS | sha256sum -c -
+
+tar xf php2shell-mitigation-for-php-5.4.45-source.tar.gz
+cd php-5.4.45
+./configure --prefix=/opt/php54-patched
+make -j$(nproc)
+make test
+```
+
+tarballは公式版と同じトップディレクトリ `php-5.4.45` と、upstreamの全ライセンスファイルを維持します。適用したパッチと由来を確認できるよう、`PHP2SHELL-MITIGATION.patch` と `PHP2SHELL-MITIGATION-NOTICE.txt` も収録します。
+
+`scripts/build-source-release.sh` は、公式ソースtarballと固定したソース・パッチのハッシュから再現可能なtarballを生成します。GitHub Actionsではtarballを生成後、その完成品をAddressSanitizer付きでコンパイルし、security regression suiteを実行してworkflow artifactとして保存します。
+
 ## パッチの適用
 
 配布物は `php-5.4.45-php2shell.patch` です。公式 PHP 5.4.45 tarball のトップディレクトリから `-p1` で適用できます。
@@ -36,7 +56,7 @@ ac_cv_func_readdir_r=no CFLAGS=-fcommon \
 適用前に配布パッチを検証できます。
 
 ```sh
-sha256sum -c SHA256SUMS
+grep 'php-5.4.45-php2shell.patch' SHA256SUMS | sha256sum -c -
 ```
 
 ## 修正内容
@@ -60,7 +80,7 @@ PHP 7.4 の修正に含まれる HashTable singleton と VM opcode の変更は�
 
 ## AddressSanitizer 検証
 
-`tests/run-asan.sh` は公式 tarball を取得し、配布パッチを `patch -p1` で適用してから、PHP CLI、CGI、session を AddressSanitizer 付きでビルドします。
+`tests/run-asan.sh` は、公式tarballを取得してパッチを適用する方法と、完成済みソースtarballを `SOURCE_ARCHIVE` で渡す方法の両方に対応します。PHP CLI、CGI、sessionをAddressSanitizer付きでビルドします。
 
 PowerShell:
 
@@ -192,8 +212,13 @@ ZTS、Apache module、x64 は未検証です。以前の別検証では VC11 lin
 
 ## 整合性
 
-`SHA256SUMS` に配布用パッチの SHA-256 を収録しています。
+`SHA256SUMS` に2つのソース配布物のSHA-256を収録しています。
 
 ```text
+4a0c5ef2c185d31a9fc6908cf2da257379c5d11c4f612aea0508a350858a8797  php2shell-mitigation-for-php-5.4.45-source.tar.gz
 31927aaacb5d1158d6461bdeb8360ec3a4eb48c2ffa3bf69b751ddb0a0bd713c  php-5.4.45-php2shell.patch
 ```
+
+## ライセンス
+
+このリポジトリで作成したドキュメントと自動化スクリプトはBSD 3-Clause Licenseで提供します。配布パッチとパッチ適用済みソースには、変更対象となるPHPおよびZend Engineファイルのライセンスと著作権表示が引き続き適用されます。正確な適用範囲とライセンス本文は `LICENSE`、`NOTICE.md`、`LICENSES/` を参照してください。生成するソースtarballは公式PHP 5.4.45配布物の全ライセンスファイルを維持します。

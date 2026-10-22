@@ -1,0 +1,41 @@
+name: Source package
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-source-package:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build and verify patched source archive
+        run: bash ./scripts/build-source-release.sh dist
+
+      - name: Build ASan test image
+        run: docker build -f Dockerfile.asan -t php54-php2shell-asan .
+
+      - name: Test the packaged source
+        run: >-
+          docker run --rm
+          -e SOURCE_ARCHIVE=/workspace/dist/php2shell-mitigation-for-php-5.4.45-source.tar.gz
+          -v "${PWD}:/workspace:ro"
+          php54-php2shell-asan
+          bash /workspace/tests/run-asan.sh
+
+      - name: Upload source package
+        uses: actions/upload-artifact@v4
+        with:
+          name: php2shell-mitigation-for-php-5.4.45-source
+          path: |
+            dist/php2shell-mitigation-for-php-5.4.45-source.tar.gz
+            dist/php-5.4.45-php2shell.patch
+            dist/SHA256SUMS
+          if-no-files-found: error

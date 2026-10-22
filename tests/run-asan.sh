@@ -6,13 +6,20 @@ FIXTURE_DIR=${FIXTURE_DIR:-/workspace/tests/fixtures}
 JOBS=${JOBS:-2}
 PHP_ARCHIVE_URL=${PHP_ARCHIVE_URL:-https://museum.php.net/php5/php-5.4.45.tar.gz}
 PATCH_FILE=${PATCH_FILE:-/workspace/php-5.4.45-php2shell.patch}
+SOURCE_ARCHIVE=${SOURCE_ARCHIVE:-}
 
 rm -rf "${BUILD_DIR}" /tmp/php-5.4.45 /tmp/php54-sessions
-curl -fsSL "${PHP_ARCHIVE_URL}" -o /tmp/php-5.4.45.tar.gz
-tar -xzf /tmp/php-5.4.45.tar.gz -C /tmp
+if [[ -n "${SOURCE_ARCHIVE}" ]]; then
+    tar -xzf "${SOURCE_ARCHIVE}" -C /tmp
+    test -f /tmp/php-5.4.45/PHP2SHELL-MITIGATION-NOTICE.txt
+    test -f /tmp/php-5.4.45/PHP2SHELL-MITIGATION.patch
+else
+    curl -fsSL "${PHP_ARCHIVE_URL}" -o /tmp/php-5.4.45.tar.gz
+    tar -xzf /tmp/php-5.4.45.tar.gz -C /tmp
+    patch --batch --forward --directory=/tmp/php-5.4.45 -p1 <"${PATCH_FILE}"
+fi
 mv /tmp/php-5.4.45 "${BUILD_DIR}"
 cd "${BUILD_DIR}"
-patch -p1 <"${PATCH_FILE}"
 
 ac_cv_func_readdir_r=no \
 CFLAGS='-O1 -g -fno-omit-frame-pointer -fsanitize=address -fcommon' \

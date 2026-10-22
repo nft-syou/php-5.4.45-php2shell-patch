@@ -1,0 +1,25 @@
+PHP 5.4.45 php2shell mitigation backport - source distribution notice
+=====================================================================
+
+This is an unofficial patched-source distribution. It is not produced,
+endorsed, or supported by The PHP Group or Zend Technologies.
+
+Upstream source:
+  https://museum.php.net/php5/php-5.4.45.tar.gz
+  SHA-256: 25bc4723955f4e352935258002af14a14a9810b491a19400d76fcdfa9d04b28f
+
+Applied patch:
+  https://github.com/nft-syou/php-5.4.45-php2shell-patch
+  File: PHP2SHELL-MITIGATION.patch
+  SHA-256: 31927aaacb5d1158d6461bdeb8360ec3a4eb48c2ffa3bf69b751ddb0a0bd713c
+
+The original PHP 5.4.45 license files, copyright notices, and source-file
+headers are retained. The patch modifies files covered principally by the
+PHP License 3.01 and Zend Engine License 2.00. See LICENSE, Zend/LICENSE,
+and the other license files included in this source tree.
+
+This product includes PHP software, freely available from
+<http://www.php.net/software/>.
+
+This product includes the Zend Engine, freely available from
+<http://www.zend.com>.

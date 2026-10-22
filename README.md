@@ -11,6 +11,26 @@ The port starts from PHP's official [PHP 7.4 EOL mitigation commit `712e60f9`](h
 
 PHP 5.4 has been unsupported upstream for years. This patch mitigates these two vulnerabilities; it does not bring PHP 5.4 to a current security level. Moving to a supported PHP release remains the proper long-term fix.
 
+## Use the patched source archive
+
+GitHub Releases provides a source archive with the patch already applied. It is not a prebuilt PHP runtime package; it preserves the official source tree, including upstream test fixtures. Download and verify it as follows:
+
+```sh
+curl -fLO https://github.com/nft-syou/php-5.4.45-php2shell-patch/releases/latest/download/php2shell-mitigation-for-php-5.4.45-source.tar.gz
+curl -fLO https://github.com/nft-syou/php-5.4.45-php2shell-patch/releases/latest/download/SHA256SUMS
+grep 'source.tar.gz' SHA256SUMS | sha256sum -c -
+
+tar xf php2shell-mitigation-for-php-5.4.45-source.tar.gz
+cd php-5.4.45
+./configure --prefix=/opt/php54-patched
+make -j$(nproc)
+make test
+```
+
+The archive retains the original `php-5.4.45` top-level directory and all upstream license files. It also includes the applied patch and a provenance notice as `PHP2SHELL-MITIGATION.patch` and `PHP2SHELL-MITIGATION-NOTICE.txt`.
+
+`scripts/build-source-release.sh` creates the archive reproducibly from the official source tarball and pinned source/patch hashes. GitHub Actions builds the archive, compiles that exact packaged source with AddressSanitizer, runs the security regression suite, and publishes the files as a workflow artifact.
+
 ## Apply the patch
 
 The release artifact is `php-5.4.45-php2shell.patch`. It applies at `-p1` to the official PHP 5.4.45 tarball:
@@ -36,7 +56,7 @@ ac_cv_func_readdir_r=no CFLAGS=-fcommon \
 Verify the release patch before applying it:
 
 ```sh
-sha256sum -c SHA256SUMS
+grep 'php-5.4.45-php2shell.patch' SHA256SUMS | sha256sum -c -
 ```
 
 ## What the patch changes
@@ -60,7 +80,7 @@ The PHP 7.4 patch also changes HashTable singleton handling and VM opcodes. Thos
 
 ## AddressSanitizer validation
 
-`tests/run-asan.sh` downloads the official tarball, applies the release patch with `patch -p1`, and builds CLI, CGI, and session support with AddressSanitizer.
+`tests/run-asan.sh` either downloads and patches the official tarball or accepts the finished source archive through `SOURCE_ARCHIVE`. It builds CLI, CGI, and session support with AddressSanitizer.
 
 PowerShell:
 
@@ -192,8 +212,13 @@ ZTS, Apache module, and x64 builds remain untested. A separate earlier VC11 chec
 
 ## Integrity
 
-`SHA256SUMS` records the SHA-256 digest of the release patch:
+`SHA256SUMS` records the SHA-256 digests of both source release artifacts:
 
 ```text
+4a0c5ef2c185d31a9fc6908cf2da257379c5d11c4f612aea0508a350858a8797  php2shell-mitigation-for-php-5.4.45-source.tar.gz
 31927aaacb5d1158d6461bdeb8360ec3a4eb48c2ffa3bf69b751ddb0a0bd713c  php-5.4.45-php2shell.patch
 ```
+
+## License
+
+Repository-authored documentation and automation are available under the BSD 3-Clause License. The release patch and patched source retain the licenses and copyright notices of the PHP and Zend Engine files they modify. See `LICENSE`, `NOTICE.md`, and `LICENSES/` for the exact scope and license texts. The generated source archive preserves all license files from the official PHP 5.4.45 distribution.
