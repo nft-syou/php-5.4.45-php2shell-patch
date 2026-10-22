@@ -1,0 +1,4 @@
+/_upstream/
+/_build/
+/test-results/
+*.log

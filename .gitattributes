@@ -1,0 +1,7 @@
+*.patch -text
+*.sh text eol=lf
+*.ps1 text eol=crlf
+*.md text eol=lf
+Dockerfile* text eol=lf
+tests/fixtures/*.php text eol=lf
+SHA256SUMS -text

@@ -1,0 +1,14 @@
+diff --git a/win32/build/config.w32 b/win32/build/config.w32
+index b06c13b..94e3706 100644
+--- a/win32/build/config.w32
++++ b/win32/build/config.w32
+@@ -181,8 +181,7 @@ if (PHP_MP != "no") {
+ }
+ 
+ // General link flags
+-DEFINE("LDFLAGS", "/nologo /version:" +
+-	PHP_VERSION + "." + PHP_MINOR_VERSION + "." + PHP_RELEASE_VERSION);
++DEFINE("LDFLAGS", "/nologo /version:" + PHP_VERSION + "." + PHP_MINOR_VERSION);
+ 
+ // General DLL link flags
+ DEFINE("DLL_LDFLAGS", "/dll ");
