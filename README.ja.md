@@ -124,7 +124,7 @@ WARN は、現在は PASS する古い XFAIL test です。完全な実行ログ
 
 ## Windows ネイティブ検証
 
-PHP の [Windows compiler 対応表](https://wiki.php.net/internals/windows/compiler) では、PHP 5.4 の対応 compiler は Visual C++ 11 です。Microsoft 公式の Visual Studio Express 2012 for Windows Desktop offline media に収録された Visual C++ 2012 RTM x86 compiler（`cl.exe` 17.00.50727.1）、linker、CRT、Windows SDK 8.0 で native 検証しました。
+PHP の [Windows compiler 対応表](https://wiki.php.net/internals/windows/compiler) では、PHP 5.4 の正式対応 compiler は Visual C++ 9、Visual C++ 11 は動作実績ありとされています。Microsoft 公式の Visual Studio Express 2012 for Windows Desktop offline media に収録された Visual C++ 2012 RTM x86 compiler（`cl.exe` 17.00.50727.1）、linker、CRT、Windows SDK 8.0 で native 検証しました。
 
 公式の [2011-09-15 版 PHP SDK binary tools](https://downloads.php.net/~windows/php-sdk/php-sdk-binary-tools-20110915.zip) を使い、x86 non-ZTS、CLI、session を構成しました。
 
@@ -157,7 +157,7 @@ powershell -ExecutionPolicy Bypass -File tests\run-windows-smoke.ps1 `
   -PhpExe C:\path\to\php-5.4.45\Release\php.exe
 ```
 
-この結果は、PHP 5.4 の公式対応 compiler を使った non-ZTS x86 経路を対象にします。ZTS、Apache module、x64 は未検証です。
+この結果は、PHP 5.4 で動作実績ありとされる compiler を使った non-ZTS x86 経路を対象にします。ZTS、Apache module、x64、正式対応の VC9 toolchain は未検証です。
 
 ## 整合性
 

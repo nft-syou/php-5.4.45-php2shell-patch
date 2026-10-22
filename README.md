@@ -124,7 +124,7 @@ The warning is an old XFAIL test that now passes. The complete local run log is 
 
 ## Native Windows validation
 
-PHP's [Windows compiler table](https://wiki.php.net/internals/windows/compiler) lists Visual C++ 11 as the supported compiler for PHP 5.4. Native validation used the Microsoft Visual C++ 2012 RTM x86 compiler (`cl.exe` 17.00.50727.1), linker, CRT, and Windows SDK 8.0 from the official Visual Studio Express 2012 for Windows Desktop offline media.
+PHP's [Windows compiler table](https://wiki.php.net/internals/windows/compiler) lists Visual C++ 9 as officially supported for PHP 5.4 and Visual C++ 11 as known to work. Native validation used the Microsoft Visual C++ 2012 RTM x86 compiler (`cl.exe` 17.00.50727.1), linker, CRT, and Windows SDK 8.0 from the official Visual Studio Express 2012 for Windows Desktop offline media.
 
 The build used the official [PHP SDK binary tools from 2011-09-15](https://downloads.php.net/~windows/php-sdk/php-sdk-binary-tools-20110915.zip), an x86 non-ZTS configuration, CLI, and session support:
 
@@ -157,7 +157,7 @@ powershell -ExecutionPolicy Bypass -File tests\run-windows-smoke.ps1 `
   -PhpExe C:\path\to\php-5.4.45\Release\php.exe
 ```
 
-This validates the non-ZTS x86 paths with the compiler officially designated for PHP 5.4. ZTS, Apache module builds, and x64 remain untested.
+This validates the non-ZTS x86 paths with a compiler listed as known to work for PHP 5.4. ZTS, Apache module builds, x64, and the officially supported VC9 toolchain remain untested.
 
 ## Integrity
 
