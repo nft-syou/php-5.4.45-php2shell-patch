@@ -215,7 +215,7 @@ ZTS、Apache module、x64 は未検証です。以前の別検証では VC11 lin
 `SHA256SUMS` に2つのソース配布物のSHA-256を収録しています。
 
 ```text
-4a0c5ef2c185d31a9fc6908cf2da257379c5d11c4f612aea0508a350858a8797  php2shell-mitigation-for-php-5.4.45-source.tar.gz
+5d07b27549691ee9a421c6085f540cd8f1b6102da6d4b2f468842e666c2417ac  php2shell-mitigation-for-php-5.4.45-source.tar.gz
 31927aaacb5d1158d6461bdeb8360ec3a4eb48c2ffa3bf69b751ddb0a0bd713c  php-5.4.45-php2shell.patch
 ```
 

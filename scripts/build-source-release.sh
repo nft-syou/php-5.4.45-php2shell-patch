@@ -47,6 +47,9 @@ patch --batch --forward --directory="${source_dir}" -p1 < "${patch_file}"
 
 cp "${patch_file}" "${source_dir}/PHP2SHELL-MITIGATION.patch"
 cp "${notice_file}" "${source_dir}/PHP2SHELL-MITIGATION-NOTICE.txt"
+chmod 0644 \
+    "${source_dir}/PHP2SHELL-MITIGATION.patch" \
+    "${source_dir}/PHP2SHELL-MITIGATION-NOTICE.txt"
 
 rm -f "${output_dir}/${ARCHIVE_NAME}" \
       "${output_dir}/php-5.4.45-php2shell.patch" \
