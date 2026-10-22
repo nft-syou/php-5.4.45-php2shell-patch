@@ -41,7 +41,7 @@ sha256sum -c SHA256SUMS
 
 ## 修正内容
 
-パッチは 10 ファイルを変更し、133 行追加、68 行削除です。
+パッチは 10 ファイルを変更し、142 行追加、68 行削除です。
 
 - Zend Memory Manager の OOM と割り当てサイズのオーバーフローでは、固定長バッファの診断を出して `_exit(1)` で終了します。危険な `longjmp` bailout には入りません。
 - PHP 5.4 の文字列結合は `concat_function()` に集約されているため、その 2 つのサイズオーバーフロー経路も同じ終了処理へ変更します。
@@ -76,11 +76,12 @@ docker build -f Dockerfile.asan -t php54-php2shell-asan .
 docker run --rm -v "$PWD:/workspace:ro" php54-php2shell-asan bash /workspace/tests/run-asan.sh
 ```
 
-2026-10-22 に Ubuntu 22.04、GCC 11、AddressSanitizer で確認しました。
+2026-10-23 に Ubuntu 22.04、GCC 11、AddressSanitizer で確認しました。
 
 | 検証 | 結果 |
 | --- | --- |
 | 8 MiB 制限下で 32 MiB を確保し、Fatal error 出力後に exit 1 | PASS |
+| overflow する割り当てを拒否し、`size_t` の数値を診断へ出力 | PASS |
 | fatal request と正常 request を同じ server process で 25 回反復 | PASS |
 | session upload-progress data が保存されないこと | PASS |
 | `max_multipart_body_parts=2` で 2 part だけ受理すること | PASS |
@@ -124,30 +125,37 @@ WARN は、現在は PASS する古い XFAIL test です。完全な実行ログ
 
 ## Windows ネイティブ検証
 
-PHP の [Windows compiler 対応表](https://wiki.php.net/internals/windows/compiler) では、PHP 5.4 の正式対応 compiler は Visual C++ 9、Visual C++ 11 は動作実績ありとされています。Microsoft 公式の Visual Studio Express 2012 for Windows Desktop offline media に収録された Visual C++ 2012 RTM x86 compiler（`cl.exe` 17.00.50727.1）、linker、CRT、Windows SDK 8.0 で native 検証しました。
+PHP の [Windows compiler 対応表](https://wiki.php.net/internals/windows/compiler) では、PHP 5.4 の対応 compiler は Visual C++ 9 です。このため、2026-10-23 に配布パッチを x86 Visual C++ 2008 SP1 compiler/linker（`15.00.30729.01` / `9.00.30729.01`）、Windows SDK 6.1（`rc.exe` 6.0.5724.0）、公式の [2011-09-15 版 PHP SDK binary tools](https://downloads.php.net/~windows/php-sdk/php-sdk-binary-tools-20110915.zip) で検証しました。
 
-公式の [2011-09-15 版 PHP SDK binary tools](https://downloads.php.net/~windows/php-sdk/php-sdk-binary-tools-20110915.zip) を使い、x86 non-ZTS、CLI、session を構成しました。
+検証した構成は x86、non-ZTS、CLI、session です。Visual C++ 2008 SP1 と Windows SDK 6.1 をインストール済みの環境では、同等の build command は次のとおりです。
 
 ```bat
 git apply ..\php-5.4.45-php2shell.patch
-git apply ..\tests\windows-vc11-link-version.patch
 
-set PATH=C:\php-sdk-tools\bin;%PATH%
-call "C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\vcvarsall.bat" x86
+call "C:\Program Files (x86)\Microsoft Visual Studio 9.0\VC\vcvarsall.bat" x86
+set "WINSDK61=C:\Program Files\Microsoft SDKs\Windows\v6.1"
+set "PATH=C:\php-sdk-tools\bin;%WINSDK61%\Bin;%PATH%"
+set "INCLUDE=%WINSDK61%\Include;%INCLUDE%"
+set "LIB=%WINSDK61%\Lib;%LIB%"
+set "LIBPATH=%WINSDK61%\Lib;%LIBPATH%"
+set "WindowsSdkDir=%WINSDK61%\"
 
 call buildconf.bat
 call configure.bat --disable-all --enable-cli --disable-zts --enable-session
 nmake
 ```
 
-PHP 5.4.45 の元の Windows build rule は、二要素の image version を受け付ける `link.exe` に `/version:5.4.45` を渡します。別ファイルの試験用 `tests/windows-vc11-link-version.patch` はこれを `/version:5.4` に直します。PHP の runtime code は変更せず、配布用 security patch にも含まれません。
+配布パッチと PHP build system には Windows 専用の調整を加えていません。PHP 5.4.45 の元の `/version:5.4.45` linker option は VC9 linker で成功しました。`dumpbin` では x86 image、linker version 9.00、image version 5.04、`MSVCR90.dll` への依存を確認しました。
 
-修正対象の runtime source はすべて compile され、`php5.dll` と `php.exe` の link に成功しました。`tests/run-windows-smoke.ps1` の結果は次のとおりです。
+VC9 検証では、実際に移植部の互換性不具合を 1 件検出しました。Visual C++ 2008 CRT は C99 の `%zu` をサポートしないため、割り当てサイズの診断が正しく表示されません。Windows では `%Iu`、それ以外では `%zu` を使うように修正しました。不具合を検出した `ext/spl/tests/bug67247.phpt` は修正後に PASS しています。
+
+`tests/run-windows-smoke.ps1` の結果は次のとおりです。
 
 | Windows ネイティブ検証 | 結果 |
 | --- | --- |
 | PHP 5.4.45 CLI の起動 | PASS |
 | OOM 診断と exit code 1 | PASS |
+| allocation overflow 診断の `size_t` 値が数値で表示され、exit 1 | PASS |
 | fatal/healthy request cycle、25 回 | PASS |
 | session upload-progress 緩和策 | PASS |
 | multipart body-parts 上限 | PASS |
@@ -157,12 +165,35 @@ powershell -ExecutionPolicy Bypass -File tests\run-windows-smoke.ps1 `
   -PhpExe C:\path\to\php-5.4.45\Release\php.exe
 ```
 
-この結果は、PHP 5.4 で動作実績ありとされる compiler を使った non-ZTS x86 経路を対象にします。ZTS、Apache module、x64、正式対応の VC9 toolchain は未検証です。
+Windows native の全 PHPT では、source tree 内の 12,562 件をすべて走査しました。最終結果と未変更 PHP 5.4.45 build との比較は次のとおりです。
+
+```bat
+set NO_INTERACTION=1
+set REPORT_EXIT_STATUS=1
+set TESTS=-q
+nmake test
+```
+
+| Windows native PHPT 結果 | 件数 |
+| --- | ---: |
+| test inventory 全体 | 12,562 |
+| skip 後の実行対象 | 6,826 |
+| PASS | 6,753 |
+| FAIL | 43 |
+| XFAIL | 29 |
+| WARN | 1 |
+| SKIP | 5,736 |
+| 実行時間 | 1,281 秒 |
+| `REPORT_EXIT_STATUS=1` での `nmake test` exit status | 1 |
+
+43 件の FAIL はすべて切り分けました。同じ VC9 toolchain で作った未変更 PHP 5.4.45 に対する対象 test の実行では、41 件が同様に失敗します。`tests/lang/bug45392.phpt` は OOM 後の回復を期待しますが、この緩和策は worker を意図的に終了します。`tests/func/005a.phpt` は PHPT wrapper 上で timing-sensitive であり、生成された PHP file の直接実行では patched/未変更 build の両方が期待する 2 行を出力しました。VC9 固有の回帰 test `ext/spl/tests/bug67247.phpt` は PASS します。
+
+ZTS、Apache module、x64 は未検証です。以前の別検証では VC11 linker が PHP 5.4.45 の三要素 image version を拒否するため、`tests/windows-vc11-link-version.patch` が必要でした。この互換用 helper は配布パッチに含めていません。
 
 ## 整合性
 
 `SHA256SUMS` に配布用パッチの SHA-256 を収録しています。
 
 ```text
-afa262fd41cd2f7cb7f0842f4d936924412456609270b0a5d4864f7c0c656a0f  php-5.4.45-php2shell.patch
+31927aaacb5d1158d6461bdeb8360ec3a4eb48c2ffa3bf69b751ddb0a0bd713c  php-5.4.45-php2shell.patch
 ```

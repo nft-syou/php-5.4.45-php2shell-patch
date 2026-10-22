@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 $php = (Resolve-Path -LiteralPath $PhpExe).Path
 $fixtures = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot 'fixtures')).Path
 $oomFixture = (Resolve-Path -LiteralPath (Join-Path $fixtures 'oom.php')).Path
+$allocationOverflowFixture = (Resolve-Path -LiteralPath (Join-Path $fixtures 'allocation-overflow.php')).Path
 New-Item -ItemType Directory -Path $ResultDir -Force | Out-Null
 $results = (Resolve-Path -LiteralPath $ResultDir).Path
 
@@ -24,6 +25,15 @@ if ($oom.ExitCode -ne 1 -or $oomMessage -notmatch 'Allowed memory size') {
     throw "OOM hard-exit check failed: exit=$($oom.ExitCode)"
 }
 Write-Output 'Windows OOM hard-exit test: PASS'
+
+$overflowStdout = Join-Path $results 'windows-allocation-overflow.stdout.log'
+$overflowStderr = Join-Path $results 'windows-allocation-overflow.stderr.log'
+$overflow = Start-Process -FilePath $php -ArgumentList @('-n', ('"' + $allocationOverflowFixture + '"')) -Wait -PassThru -NoNewWindow -RedirectStandardOutput $overflowStdout -RedirectStandardError $overflowStderr
+$overflowMessage = Get-Content -LiteralPath $overflowStderr -Raw
+if ($overflow.ExitCode -ne 1 -or $overflowMessage -notmatch 'Possible integer overflow in memory allocation \([0-9]+ \* [0-9]+ \+ [0-9]+\)') {
+    throw "Allocation-overflow diagnostic check failed: exit=$($overflow.ExitCode), message='$overflowMessage'"
+}
+Write-Output 'Windows allocation-overflow diagnostic test: PASS'
 
 $runId = [Guid]::NewGuid().ToString('N')
 $sessionDir = Join-Path ([IO.Path]::GetTempPath()) "php54-windows-smoke-$runId"

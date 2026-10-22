@@ -1,5 +1,5 @@
 diff --git a/Zend/zend_alloc.c b/Zend/zend_alloc.c
-index d23118bf91..dab4d077f7 100644
+index d23118bf91d93c800ff2dedc7eedc98cd947b9f0..6b98a92b72979284e6eaf0fbb84e0eb5d99c42a3 100644
 --- a/Zend/zend_alloc.c
 +++ b/Zend/zend_alloc.c
 @@ -24,6 +24,7 @@
@@ -10,7 +10,7 @@ index d23118bf91..dab4d077f7 100644
  
  #ifdef HAVE_SIGNAL_H
  # include <signal.h>
-@@ -91,7 +92,43 @@ static void zend_mm_panic(const char *message)
+@@ -91,7 +92,44 @@ static void zend_mm_panic(const char *message)
  #if ZEND_DEBUG && defined(HAVE_KILL) && defined(HAVE_GETPID)
  	kill(getpid(), SIGSEGV);
  #endif
@@ -46,6 +46,7 @@ index d23118bf91..dab4d077f7 100644
 +
 +	va_start(args, format);
 +	vsnprintf(buffer, sizeof(buffer), format, args);
++	buffer[sizeof(buffer) - 1] = '\0';
 +	va_end(args);
 +
 +	fprintf(stderr, "\nFatal error: %s in %s on line %u\n",
@@ -55,7 +56,7 @@ index d23118bf91..dab4d077f7 100644
  }
  
  /*******************/
-@@ -1745,59 +1782,12 @@ static void zend_mm_safe_error(zend_mm_heap *heap,
+@@ -1745,59 +1783,12 @@ static void zend_mm_safe_error(zend_mm_heap *heap,
  #endif
  	size_t size)
  {
@@ -119,44 +120,65 @@ index d23118bf91..dab4d077f7 100644
  }
  
  static zend_mm_free_block *zend_mm_search_large_block(zend_mm_heap *heap, size_t true_size)
-@@ -2468,7 +2458,7 @@ static inline size_t safe_address(size_t nmemb, size_t size, size_t offset)
+@@ -2454,6 +2445,12 @@ ZEND_API size_t _zend_mem_block_size(void *ptr TSRMLS_DC ZEND_FILE_LINE_DC ZEND_
+ 	return _zend_mm_block_size(AG(mm_heap), ptr ZEND_FILE_LINE_RELAY_CC ZEND_FILE_LINE_ORIG_RELAY_CC);
+ }
+ 
++#ifdef ZEND_WIN32
++# define ZEND_MM_SIZE_T_FMT "%Iu"
++#else
++# define ZEND_MM_SIZE_T_FMT "%zu"
++#endif
++
+ #if defined(__GNUC__) && (defined(__native_client__) || defined(i386))
+ 
+ static inline size_t safe_address(size_t nmemb, size_t size, size_t offset)
+@@ -2468,7 +2465,7 @@ static inline size_t safe_address(size_t nmemb, size_t size, size_t offset)
  	       "rm"(offset));
  
  	if (UNEXPECTED(overflow)) {
 -		zend_error_noreturn(E_ERROR, "Possible integer overflow in memory allocation (%zu * %zu + %zu)", nmemb, size, offset);
-+		zend_mm_safe_error_ex("Possible integer overflow in memory allocation (%zu * %zu + %zu)", nmemb, size, offset);
++		zend_mm_safe_error_ex("Possible integer overflow in memory allocation (" ZEND_MM_SIZE_T_FMT " * " ZEND_MM_SIZE_T_FMT " + " ZEND_MM_SIZE_T_FMT ")", nmemb, size, offset);
  		return 0;
  	}
  	return res;
-@@ -2498,7 +2488,7 @@ static inline size_t safe_address(size_t nmemb, size_t size, size_t offset)
+@@ -2498,7 +2495,7 @@ static inline size_t safe_address(size_t nmemb, size_t size, size_t offset)
  #undef LP_SUFF
  
          if (UNEXPECTED(overflow)) {
 -                zend_error_noreturn(E_ERROR, "Possible integer overflow in memory allocation (%zu * %zu + %zu)", nmemb, size, offset);
-+			zend_mm_safe_error_ex("Possible integer overflow in memory allocation (%zu * %zu + %zu)", nmemb, size, offset);
++			zend_mm_safe_error_ex("Possible integer overflow in memory allocation (" ZEND_MM_SIZE_T_FMT " * " ZEND_MM_SIZE_T_FMT " + " ZEND_MM_SIZE_T_FMT ")", nmemb, size, offset);
                  return 0;
          }
          return res;
-@@ -2511,7 +2501,7 @@ static inline size_t safe_address(size_t nmemb, size_t size, size_t offset)
+@@ -2511,7 +2508,7 @@ static inline size_t safe_address(size_t nmemb, size_t size, size_t offset)
  	zend_ulong64 res = (zend_ulong64)nmemb * (zend_ulong64)size + (zend_ulong64)offset;
  
  	if (UNEXPECTED(res > (zend_ulong64)0xFFFFFFFFL)) {
 -		zend_error_noreturn(E_ERROR, "Possible integer overflow in memory allocation (%zu * %zu + %zu)", nmemb, size, offset);
-+		zend_mm_safe_error_ex("Possible integer overflow in memory allocation (%zu * %zu + %zu)", nmemb, size, offset);
++		zend_mm_safe_error_ex("Possible integer overflow in memory allocation (" ZEND_MM_SIZE_T_FMT " * " ZEND_MM_SIZE_T_FMT " + " ZEND_MM_SIZE_T_FMT ")", nmemb, size, offset);
  		return 0;
  	}
  	return (size_t) res;
-@@ -2526,7 +2516,7 @@ static inline size_t safe_address(size_t nmemb, size_t size, size_t offset)
+@@ -2526,13 +2523,15 @@ static inline size_t safe_address(size_t nmemb, size_t size, size_t offset)
  	double _delta = (double)res - _d;
  
  	if (UNEXPECTED((_d + _delta ) != _d)) {
 -		zend_error_noreturn(E_ERROR, "Possible integer overflow in memory allocation (%zu * %zu + %zu)", nmemb, size, offset);
-+		zend_mm_safe_error_ex("Possible integer overflow in memory allocation (%zu * %zu + %zu)", nmemb, size, offset);
++		zend_mm_safe_error_ex("Possible integer overflow in memory allocation (" ZEND_MM_SIZE_T_FMT " * " ZEND_MM_SIZE_T_FMT " + " ZEND_MM_SIZE_T_FMT ")", nmemb, size, offset);
  		return 0;
  	}
  	return res;
+ }
+ #endif
+ 
++#undef ZEND_MM_SIZE_T_FMT
++
+ 
+ ZEND_API void *_safe_emalloc(size_t nmemb, size_t size, size_t offset ZEND_FILE_LINE_DC ZEND_FILE_LINE_ORIG_DC)
+ {
 diff --git a/Zend/zend_alloc.h b/Zend/zend_alloc.h
-index 3e9747d2ae..e42be50e02 100644
+index 3e9747d2aeedb80839724f5b345c12658087fbba..e42be50e02e268f1fc3b641a196b8c30d9fd40dc 100644
 --- a/Zend/zend_alloc.h
 +++ b/Zend/zend_alloc.h
 @@ -234,6 +234,8 @@ ZEND_API zend_mm_heap *zend_mm_startup_ex(const zend_mm_mem_handlers *handlers,
@@ -169,7 +191,7 @@ index 3e9747d2ae..e42be50e02 100644
                                            void* (*_malloc)(size_t),
                                            void  (*_free)(void*),
 diff --git a/Zend/zend_execute_API.c b/Zend/zend_execute_API.c
-index 55ef32313f..13a752a0cb 100644
+index 55ef32313f91cdada18027a875758f2c6da4fddd..13a752a0cb6d87ac5d72030f74423cb0b1ccabf4 100644
 --- a/Zend/zend_execute_API.c
 +++ b/Zend/zend_execute_API.c
 @@ -332,6 +332,22 @@ void shutdown_executor(TSRMLS_D) /* {{{ */
@@ -196,7 +218,7 @@ index 55ef32313f..13a752a0cb 100644
  
  	EG(active) = 0;
 diff --git a/Zend/zend_llist.c b/Zend/zend_llist.c
-index f8c20e7b76..6aad549b54 100644
+index f8c20e7b762a5624a7268b168dc1dc121866c531..6aad549b54f91089e8fb6023fa759062e97c1195 100644
 --- a/Zend/zend_llist.c
 +++ b/Zend/zend_llist.c
 @@ -117,6 +117,8 @@ ZEND_API void zend_llist_destroy(zend_llist *l)
@@ -209,7 +231,7 @@ index f8c20e7b76..6aad549b54 100644
  }
  
 diff --git a/Zend/zend_operators.c b/Zend/zend_operators.c
-index 75c456cfb0..9393890ce9 100644
+index 75c456cfb085e4c0c831b0e313cae9395d56fa3b..9393890ce917c00209acf7468113c1f9b2872108 100644
 --- a/Zend/zend_operators.c
 +++ b/Zend/zend_operators.c
 @@ -1261,7 +1261,7 @@ ZEND_API int concat_function(zval *result, zval *op1, zval *op2 TSRMLS_DC) /* {{
@@ -231,7 +253,7 @@ index 75c456cfb0..9393890ce9 100644
  		buf = (char *) safe_emalloc(length, 1, 1);
  
 diff --git a/Zend/zend_strtod.c b/Zend/zend_strtod.c
-index 4546614cfd..66bd5c9a36 100644
+index 4546614cfdf7f2b0ffa294d56544febc05d87b67..66bd5c9a36fb5e2560117950b1761b193c481dec 100644
 --- a/Zend/zend_strtod.c
 +++ b/Zend/zend_strtod.c
 @@ -490,7 +490,7 @@ static Bigint * Balloc(int k)
@@ -244,7 +266,7 @@ index 4546614cfd..66bd5c9a36 100644
  		rv->k = k;
  		rv->maxwds = x;
 diff --git a/ext/session/session.c b/ext/session/session.c
-index 0e53c62133..0fdc3f0175 100644
+index 0e53c621338a34604b93444a315c731ae1d17252..0fdc3f017560316eb8549031446cb2251f9124d2 100644
 --- a/ext/session/session.c
 +++ b/ext/session/session.c
 @@ -2472,9 +2472,16 @@ static int php_session_rfc1867_callback(unsigned int event, void *event_data, vo
@@ -268,7 +290,7 @@ index 0e53c62133..0fdc3f0175 100644
  	progress = PS(rfc1867_progress);
  
 diff --git a/main/SAPI.c b/main/SAPI.c
-index 1390d29f8c..265dd37f8a 100644
+index 1390d29f8c50736b0e4055e3800d0be1a6ef51df..265dd37f8a95f9b106049a138838652b8638063e 100644
 --- a/main/SAPI.c
 +++ b/main/SAPI.c
 @@ -503,6 +503,7 @@ SAPI_API void sapi_deactivate(TSRMLS_D)
@@ -316,7 +338,7 @@ index 1390d29f8c..265dd37f8a 100644
  	SG(request_info).headers_read = 0;
  	SG(global_request_time) = 0;
 diff --git a/main/main.c b/main/main.c
-index 8546500f32..e54c590989 100644
+index 8546500f329c4148c2eb0d6ff87bfceca1862d9a..e54c59098994529fdafbce4299f6af25cdf9203d 100644
 --- a/main/main.c
 +++ b/main/main.c
 @@ -558,6 +558,7 @@ PHP_INI_BEGIN()
@@ -356,7 +378,7 @@ index 8546500f32..e54c590989 100644
  /* }}} */
  
 diff --git a/main/rfc1867.c b/main/rfc1867.c
-index 9e2fbd52eb..763de36d82 100644
+index 9e2fbd52ebc79ee0ea895146c58fd49e9376b9c3..763de36d82f1e93b8ca16ec1c13e86fc3ed63661 100644
 --- a/main/rfc1867.c
 +++ b/main/rfc1867.c
 @@ -395,6 +395,14 @@ static int find_boundary(multipart_buffer *self, char *boundary TSRMLS_DC)

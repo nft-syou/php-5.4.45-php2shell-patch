@@ -47,6 +47,26 @@ if grep -q 'ERROR: AddressSanitizer' <<<"${oom_output}"; then
 fi
 echo 'OOM hard-exit test: PASS'
 
+set +e
+overflow_output=$("${PHP_BIN}" -n "${FIXTURE_DIR}/allocation-overflow.php" 2>&1)
+overflow_status=$?
+set -e
+printf '%s\n' "${overflow_output}"
+
+if [[ ${overflow_status} -ne 1 ]]; then
+    echo "Allocation-overflow test: expected exit status 1, got ${overflow_status}" >&2
+    exit 1
+fi
+if ! grep -Eq 'Possible integer overflow in memory allocation \([0-9]+ \* [0-9]+ \+ [0-9]+\)' <<<"${overflow_output}"; then
+    echo 'Allocation-overflow test: numeric size_t values were not emitted' >&2
+    exit 1
+fi
+if grep -q 'ERROR: AddressSanitizer' <<<"${overflow_output}"; then
+    echo 'Allocation-overflow test: AddressSanitizer reported memory corruption' >&2
+    exit 1
+fi
+echo 'Allocation-overflow hard-exit test: PASS'
+
 mkdir -p /tmp/php54-sessions
 server_log=/tmp/php54-server.log
 "${PHP_BIN}" -n \

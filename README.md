@@ -41,7 +41,7 @@ sha256sum -c SHA256SUMS
 
 ## What the patch changes
 
-The patch changes 10 files, adding 133 lines and removing 68.
+The patch changes 10 files, adding 142 lines and removing 68.
 
 - Zend Memory Manager OOM and allocation-size overflows now print a fixed-buffer diagnostic and terminate with `_exit(1)`. They no longer enter the unsafe `longjmp` bailout path.
 - PHP 5.4 handles string concatenation in `concat_function()`, so both size-overflow paths there use the same hard-exit handler.
@@ -76,11 +76,12 @@ docker build -f Dockerfile.asan -t php54-php2shell-asan .
 docker run --rm -v "$PWD:/workspace:ro" php54-php2shell-asan bash /workspace/tests/run-asan.sh
 ```
 
-Validated on 2026-10-22 with Ubuntu 22.04, GCC 11, and AddressSanitizer:
+Validated on 2026-10-23 with Ubuntu 22.04, GCC 11, and AddressSanitizer:
 
 | Check | Result |
 | --- | --- |
 | Allocate 32 MiB under an 8 MiB limit; print the fatal error and exit 1 | PASS |
+| Reject an overflowing allocation and print numeric `size_t` values | PASS |
 | Alternate a fatal request and a healthy request 25 times in one server process | PASS |
 | Do not persist session upload-progress data | PASS |
 | Accept only two parts when `max_multipart_body_parts=2` | PASS |
@@ -124,30 +125,37 @@ The warning is an old XFAIL test that now passes. The complete local run log is 
 
 ## Native Windows validation
 
-PHP's [Windows compiler table](https://wiki.php.net/internals/windows/compiler) lists Visual C++ 9 as officially supported for PHP 5.4 and Visual C++ 11 as known to work. Native validation used the Microsoft Visual C++ 2012 RTM x86 compiler (`cl.exe` 17.00.50727.1), linker, CRT, and Windows SDK 8.0 from the official Visual Studio Express 2012 for Windows Desktop offline media.
+PHP's [Windows compiler table](https://wiki.php.net/internals/windows/compiler) lists Visual C++ 9 as the supported compiler for PHP 5.4. On 2026-10-23, the release patch was validated with the x86 Visual C++ 2008 SP1 compiler and linker (`15.00.30729.01` and `9.00.30729.01`), Windows SDK 6.1 (`rc.exe` 6.0.5724.0), and the official [PHP SDK binary tools from 2011-09-15](https://downloads.php.net/~windows/php-sdk/php-sdk-binary-tools-20110915.zip).
 
-The build used the official [PHP SDK binary tools from 2011-09-15](https://downloads.php.net/~windows/php-sdk/php-sdk-binary-tools-20110915.zip), an x86 non-ZTS configuration, CLI, and session support:
+The tested build was x86, non-ZTS, with CLI and session support. With Visual C++ 2008 SP1 and Windows SDK 6.1 already installed, the equivalent build commands are:
 
 ```bat
 git apply ..\php-5.4.45-php2shell.patch
-git apply ..\tests\windows-vc11-link-version.patch
 
-set PATH=C:\php-sdk-tools\bin;%PATH%
-call "C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\vcvarsall.bat" x86
+call "C:\Program Files (x86)\Microsoft Visual Studio 9.0\VC\vcvarsall.bat" x86
+set "WINSDK61=C:\Program Files\Microsoft SDKs\Windows\v6.1"
+set "PATH=C:\php-sdk-tools\bin;%WINSDK61%\Bin;%PATH%"
+set "INCLUDE=%WINSDK61%\Include;%INCLUDE%"
+set "LIB=%WINSDK61%\Lib;%LIB%"
+set "LIBPATH=%WINSDK61%\Lib;%LIBPATH%"
+set "WindowsSdkDir=%WINSDK61%\"
 
 call buildconf.bat
 call configure.bat --disable-all --enable-cli --disable-zts --enable-session
 nmake
 ```
 
-PHP 5.4.45's original Windows build rule passes `/version:5.4.45` to `link.exe`, although the linker accepts a two-component image version. The separate test-only `tests/windows-vc11-link-version.patch` changes that flag to `/version:5.4`; it does not modify PHP runtime code and is not included in the release security patch.
+No Windows-specific adjustment was applied to the release patch or the PHP build system. PHP 5.4.45's original `/version:5.4.45` linker option succeeded with the VC9 linker. `dumpbin` confirmed an x86 image, linker version 9.00, image version 5.04, and an `MSVCR90.dll` dependency.
 
-All patched runtime sources compiled, and `php5.dll` and `php.exe` linked successfully. `tests/run-windows-smoke.ps1` then produced:
+The VC9 run found one portability defect during validation: Visual C++ 2008's CRT does not support the C99 `%zu` format. Allocation-overflow diagnostics now use `%Iu` on Windows and `%zu` elsewhere. The PHPT that exposed it, `ext/spl/tests/bug67247.phpt`, passes after the change.
+
+`tests/run-windows-smoke.ps1` produced:
 
 | Native Windows check | Result |
 | --- | --- |
 | PHP 5.4.45 CLI starts | PASS |
 | OOM diagnostic and exit code 1 | PASS |
+| Allocation-overflow diagnostic uses numeric `size_t` values and exits 1 | PASS |
 | Fatal/healthy request cycle, 25 loops | PASS |
 | Session upload-progress mitigation | PASS |
 | Multipart body-parts limit | PASS |
@@ -157,12 +165,35 @@ powershell -ExecutionPolicy Bypass -File tests\run-windows-smoke.ps1 `
   -PhpExe C:\path\to\php-5.4.45\Release\php.exe
 ```
 
-This validates the non-ZTS x86 paths with a compiler listed as known to work for PHP 5.4. ZTS, Apache module builds, x64, and the officially supported VC9 toolchain remain untested.
+The complete native Windows PHPT run covered all 12,562 tests in the source tree. Its final counts and comparison with an unmodified PHP 5.4.45 build are recorded below.
+
+```bat
+set NO_INTERACTION=1
+set REPORT_EXIT_STATUS=1
+set TESTS=-q
+nmake test
+```
+
+| Native Windows PHPT result | Count |
+| --- | ---: |
+| Total test inventory | 12,562 |
+| Executed after skips | 6,826 |
+| Passed | 6,753 |
+| Failed | 43 |
+| Expected failures | 29 |
+| Warned | 1 |
+| Skipped | 5,736 |
+| Time | 1,281 seconds |
+| `nmake test` exit status with `REPORT_EXIT_STATUS=1` | 1 |
+
+All 43 failures were accounted for. A targeted run against an unmodified PHP 5.4.45 build made with the same VC9 toolchain reproduced 41. `tests/lang/bug45392.phpt` expects recovery after an OOM, while the mitigation deliberately terminates the worker. `tests/func/005a.phpt` is timing-sensitive under the PHPT wrapper; direct execution printed both expected lines on patched and unmodified builds. The VC9-specific regression test `ext/spl/tests/bug67247.phpt` passes.
+
+ZTS, Apache module, and x64 builds remain untested. A separate earlier VC11 check required `tests/windows-vc11-link-version.patch` because that newer linker rejects PHP 5.4.45's three-component image version. That compatibility helper is not part of the release patch.
 
 ## Integrity
 
 `SHA256SUMS` records the SHA-256 digest of the release patch:
 
 ```text
-afa262fd41cd2f7cb7f0842f4d936924412456609270b0a5d4864f7c0c656a0f  php-5.4.45-php2shell.patch
+31927aaacb5d1158d6461bdeb8360ec3a4eb48c2ffa3bf69b751ddb0a0bd713c  php-5.4.45-php2shell.patch
 ```
